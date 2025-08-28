@@ -1,0 +1,10 @@
+[project]
+name = "zjunet-web"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "filelock>=3.19.1",
+    "flask>=3.1.2",
+]
