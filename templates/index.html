@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <title>zjunet VPN 管理</title>
+  <title>服务器有线网账号登录</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root { color-scheme: light dark; --bg:#f6f7fb; --fg:#111; --muted:#666; --card:#fff; --border:#e5e7eb; --brand:#2563eb; --brand-600:#1d4ed8; --ok:#16a34a; --err:#dc2626; }
@@ -13,7 +13,7 @@
     .badge{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:600;font-size:12px;vertical-align:middle}
     .badge-ok{background:#dcfce7;color:#166534}.badge-err{background:#fee2e2;color:#991b1b}
     @media (prefers-color-scheme: dark){.badge-ok{background:#052e16;color:#86efac}.badge-err{background:#450a0a;color:#fecaca}}
-    .grid{display:grid;grid-template-columns:1fr;gap:16px}@media (min-width:860px){.grid{grid-template-columns:1fr 1fr}}
+    .grid{display:grid;grid-template-columns:1fr;gap:16px}@media (min-width:860px){.grid{grid-template-columns:1fr 1f r}}
     .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 4px 16px rgba(0,0,0,.05)}
     .card h3{margin:0 0 12px;font-size:18px}
     .kv{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;margin:6px 0 0}
@@ -24,17 +24,15 @@
     input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:inherit}
     label{display:block;font-size:13px;color:var(--muted);margin:6px 0 6px}
     .flash{margin:6px 0 18px;font-weight:600} .ok{color:var(--ok)} .error{color:var(--err)}
-    pre{background:rgba(148,163,184,.12);padding:12px;border-radius:12px;overflow:auto;max-height:46vh;border:1px solid var(--border)}
-    .footer{margin-top:12px;font-size:12px;color:var(--muted)}
   </style>
 </head>
 <body>
-  <h1>zjunet VPN 管理</h1>
+  <h1>服务器有线网账号登录</h1>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for cat,msg in messages %}
-        <div class="flash {{cat}}">{{msg|safe}}</div>
+        <div class="flash {{cat}}">{{ msg }}</div>
       {% endfor %}
     {% endif %}
   {% endwith %}
@@ -46,11 +44,8 @@
       </h3>
 
       <div class="kv">
-        <div class="k">PPP 接口</div>
-        <div id="ppp-text">{{ '已连接' if ppp_up else '未连接' }}</div>
-
         <div class="k">当前用户名</div>
-        <div><b id="user-list">{{ display_users }}</b> <span class="muted">（来自 zjunet user list）</span></div>
+        <div><b id="user-list">{{ display_users }}</b></div>
 
         <div class="k">连接开始于</div>
         <div id="since">{{ since or '—' }}</div>
@@ -62,41 +57,31 @@
           <span id="since-data" data-since="{{ since_js }}" hidden></span>
           {% endif %}
         </div>
-
-        <div class="k">状态文件目录</div>
-        <div><code>{{ state_dir }}</code></div>
-
-        <div class="k">sudo 模式</div>
-        <div><code>{{ sudo_mode }}</code></div>
       </div>
 
       <form action="{{ url_for('logout') }}" method="post" style="margin-top:16px">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
         <button class="btn btn-outline" type="submit">断开连接</button>
       </form>
     </div>
 
     <div class="card">
-      <h3>登录为指定学号</h3>
+      <h3>学号（注意，每个账号只能登陆一个机器）</h3>
       <form action="{{ url_for('login') }}" method="post" autocomplete="off">
-        <label>账号（纯数字）</label>
-        <input name="username" inputmode="numeric" pattern="[0-9]+" title="请输入纯数字学号" required autocomplete="username" placeholder="例如 22310046">
-        <label>密码</label>
-        <input name="password" type="password" required placeholder="zjunet 密码" autocomplete="current-password" />
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <label>有线网账号</label>
+        <input name="username" inputmode="numeric" pattern="[0-9]+" title="请输入学号" required autocomplete="username" placeholder="例如 22310046">
+        <label>有线网密码</label>
+        <input name="password" type="password" required placeholder="有线网密码" autocomplete="current-password" />
         <div style="margin-top:12px">
           <button class="btn" type="submit">连接</button>
         </div>
       </form>
-      <div class="footer">流程：断开 → 删除所有 zju 账户 → <code>zjunet user add</code>（交互：用户名↵ 密码↵）→ 连接；失败会展示原因。</div>
     </div>
   </div>
 
-  <div class="card" style="margin-top:16px">
-    <h3>最近日志 / 失败原因</h3>
-    <pre id="log-area">{{ last_log or '—' }}</pre>
-  </div>
-
   <script>
-    // --- 在线时长秒表 ---
+    // 秒表
     let sinceMs = null;
     function pad(n){ return (n<10?'0':'')+n; }
     function tick(){
@@ -113,25 +98,21 @@
       if(el){ const t = Date.parse(el.dataset.since); if(!isNaN(t)) sinceMs = t; }
     })();
 
-    // --- 轻量轮询 /status，每 5 秒更新一次状态&用户名（无整页刷新） ---
+    // 5 秒轮询状态（仅更新状态/用户名/时长）
     async function poll(){
       try{
         const r = await fetch('{{ url_for("status") }}', {cache:'no-store'});
+        if (r.status === 401) return;
         const j = await r.json();
 
-        // 用户名（user list → “、”拼接）
         const users = (j.current_users || []);
         document.getElementById('user-list').textContent = users.length ? users.join('、') : '—';
 
-        // PPP 状态
         const connected = !!j.ppp_up;
         const badge = document.getElementById('ppp-badge');
-        const pppText = document.getElementById('ppp-text');
         badge.className = 'badge ' + (connected ? 'badge-ok' : 'badge-err');
         badge.textContent = connected ? '已连接' : '未连接';
-        pppText.textContent = connected ? '已连接' : '未连接';
 
-        // since & 秒表
         const sinceEl = document.getElementById('since');
         if(connected && j.since){
           sinceEl.textContent = j.since;
@@ -141,11 +122,9 @@
           sinceEl.textContent = '—';
           sinceMs = null;
         }
-      }catch(e){ /* 忽略网络错误 */ }
+      }catch(e){}
     }
-    poll();
-    setInterval(poll, 5000);
+    poll(); setInterval(poll, 5000);
   </script>
 </body>
 </html>
-
