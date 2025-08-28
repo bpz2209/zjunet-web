@@ -144,7 +144,7 @@ python app.py          # 首次会生成 config.json，并提示输入 sudo 密�
 ```bash
 cd /path/to/zjunet-web
 source .venv/bin/activate
-python app.py
+uv run app.py
 ```
 - 首次以交互方式输入 sudo 密码。
 
